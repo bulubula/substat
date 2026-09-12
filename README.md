@@ -41,10 +41,22 @@ CGO_ENABLED=0 go build -ldflags="-s -w" -o bin/substat ./cmd/substat
 
 ### 2. 运行
 
+#### 二进制直接运行
 ```bash
 cp config.example.yaml config.yaml
 # 根据实际情况修改 config.yaml
 ./bin/substat -config config.yaml
+```
+
+#### Docker 容器运行
+```bash
+docker run -d \
+  --name substat \
+  --restart unless-stopped \
+  -p 8080:8080 \
+  -v /path/to/config.yaml:/app/config.yaml:ro \
+  -v /path/to/data:/app/data \
+  ghcr.io/bulubula/substat:latest
 ```
 
 访问 `http://127.0.0.1:8080/zymstat` 即可直接查看监控状态。
