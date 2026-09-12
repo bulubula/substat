@@ -2,6 +2,8 @@
 
 轻量、极速、零外部依赖的原生子路径（Subpath-Native）服务可用性监控面板。
 
+![Substat Preview](docs/images/preview.jpg)
+
 专为隐藏部署在 Nginx/Caddy 反代子路径（例如 `https://yourdomain.com/zymstat/`）设计，解决传统监控工具对二级目录路径支持繁琐、打包体积庞大等痛点。
 
 ---
