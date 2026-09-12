@@ -33,6 +33,14 @@ func main() {
 	}
 	defer st.Close()
 
+	var monitorNames []string
+	for _, m := range cfg.Monitors {
+		monitorNames = append(monitorNames, m.Name)
+	}
+	if err := st.LoadHistoryFromFile(monitorNames); err != nil {
+		log.Printf("[WARN] Failed to load history from file: %v", err)
+	}
+
 	log.Printf("[INFO] Initializing probe scheduler with %d monitors...", len(cfg.Monitors))
 	sched, err := scheduler.NewScheduler(cfg, st)
 	if err != nil {

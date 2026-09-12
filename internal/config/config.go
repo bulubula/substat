@@ -44,6 +44,7 @@ type MonitorConfig struct {
 	Timeout             string         `yaml:"timeout"`
 	TimeoutDuration     time.Duration  `yaml:"-"`
 	ConsecutiveFailures int            `yaml:"consecutive_failures"`
+	DegradedLatencyMs   int64          `yaml:"degraded_latency_ms"` // 延迟超过该值(ms)标黄(DEGRADED)
 	Alerts              []string       `yaml:"alerts"`
 	Probe               ProbeConfig    `yaml:"probe"`
 }
@@ -148,6 +149,9 @@ func LoadConfig(path string) (*Config, error) {
 
 		if m.ConsecutiveFailures <= 0 {
 			m.ConsecutiveFailures = 1
+		}
+		if m.DegradedLatencyMs <= 0 {
+			m.DegradedLatencyMs = 1000 // 默认 1000ms
 		}
 	}
 

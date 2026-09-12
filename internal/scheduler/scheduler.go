@@ -13,15 +13,18 @@ import (
 )
 
 type MonitorState struct {
-	Name             string         `json:"name"`
-	Type             string         `json:"type"`
-	Status           string         `json:"status"` // "UP", "DOWN", "PENDING"
-	LastCheck        time.Time      `json:"last_check"`
-	LastLatencyMs    int64          `json:"last_latency_ms"`
-	LastMessage      string         `json:"last_message,omitempty"`
-	ConsecutiveFails int            `json:"consecutive_fails"`
-	UptimeDay        float64        `json:"uptime_day"`
-	Details          map[string]any `json:"details,omitempty"`
+	Name              string         `json:"name"`
+	Type              string         `json:"type"`
+	Interval          string         `json:"interval"`
+	Status            string         `json:"status"` // "UP", "DEGRADED", "DOWN", "PENDING"
+	LastCheck         time.Time      `json:"last_check"`
+	LastLatencyMs     int64          `json:"last_latency_ms"`
+	AvgLatencyMs      int64          `json:"avg_latency_ms"`
+	LastMessage       string         `json:"last_message,omitempty"`
+	ConsecutiveFails  int            `json:"consecutive_fails"`
+	UptimeDay         float64        `json:"uptime_day"`
+	DegradedLatencyMs int64          `json:"degraded_latency_ms"`
+	Details           map[string]any `json:"details,omitempty"`
 }
 
 type Scheduler struct {
@@ -57,9 +60,11 @@ func NewScheduler(cfg *config.Config, s *store.Store) (*Scheduler, error) {
 		}
 		probes[m.Name] = p
 		states[m.Name] = &MonitorState{
-			Name:   m.Name,
-			Type:   m.Probe.Type,
-			Status: "PENDING",
+			Name:              m.Name,
+			Type:              m.Probe.Type,
+			Interval:          m.Interval,
+			DegradedLatencyMs: m.DegradedLatencyMs,
+			Status:            "PENDING",
 		}
 	}
 
@@ -118,20 +123,41 @@ func (s *Scheduler) executeCheck(parentCtx context.Context, m config.MonitorConf
 	// Save to store
 	s.store.Record(m.Name, res.Success, res.Latency, res.Message)
 
+	// Calculate rolling average latency from ring buffer
+	recentPoints := s.store.GetRecent(m.Name)
+	var sumLatency int64
+	var validCount int64
+	for _, p := range recentPoints {
+		if p.Success && p.LatencyMs > 0 {
+			sumLatency += p.LatencyMs
+			validCount++
+		}
+	}
+	var avgLatency int64
+	if validCount > 0 {
+		avgLatency = sumLatency / validCount
+	}
+
 	// Evaluate state transition
 	s.statesMu.Lock()
 	state := s.states[m.Name]
 	state.LastCheck = res.Timestamp
 	state.LastLatencyMs = res.Latency.Milliseconds()
+	state.AvgLatencyMs = avgLatency
 	state.LastMessage = res.Message
 	state.Details = res.Details
 
 	var alertToSend *alert.Event
 
 	if res.Success {
+		newStatus := "UP"
+		if state.LastLatencyMs > m.DegradedLatencyMs {
+			newStatus = "DEGRADED"
+		}
+
 		if state.Status == "DOWN" {
 			// Recovered
-			state.Status = "UP"
+			state.Status = newStatus
 			alertToSend = &alert.Event{
 				MonitorName: m.Name,
 				EventType:   alert.EventRecovered,
@@ -140,7 +166,7 @@ func (s *Scheduler) executeCheck(parentCtx context.Context, m config.MonitorConf
 				Message:     "Service recovered.",
 			}
 		} else {
-			state.Status = "UP"
+			state.Status = newStatus
 		}
 		state.ConsecutiveFails = 0
 	} else {
@@ -181,9 +207,11 @@ func (s *Scheduler) GetStates() []MonitorState {
 	s.statesMu.RLock()
 	defer s.statesMu.RUnlock()
 
-	res := make([]MonitorState, 0, len(s.states))
-	for _, v := range s.states {
-		res = append(res, *v)
+	res := make([]MonitorState, 0, len(s.cfg.Monitors))
+	for _, m := range s.cfg.Monitors {
+		if st, ok := s.states[m.Name]; ok {
+			res = append(res, *st)
+		}
 	}
 	return res
 }

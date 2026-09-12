@@ -54,6 +54,49 @@ func (s *Store) Close() error {
 	return nil
 }
 
+func (s *Store) LoadHistoryFromFile(monitors []string) error {
+	f, err := os.Open(s.filePath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return nil
+		}
+		return err
+	}
+	defer f.Close()
+
+	validMonitors := make(map[string]bool)
+	for _, m := range monitors {
+		validMonitors[m] = true
+	}
+
+	decoder := json.NewDecoder(f)
+	for decoder.More() {
+		var entry RecordEntry
+		if err := decoder.Decode(&entry); err != nil {
+			break
+		}
+		if !validMonitors[entry.MonitorName] {
+			continue
+		}
+
+		s.ringsMu.Lock()
+		r, exists := s.rings[entry.MonitorName]
+		if !exists {
+			r = NewRingBuffer(s.ringCap)
+			s.rings[entry.MonitorName] = r
+		}
+		s.ringsMu.Unlock()
+
+		r.Push(Point{
+			Timestamp: entry.Timestamp,
+			Success:   entry.Success,
+			LatencyMs: entry.LatencyMs,
+			Message:   entry.Message,
+		})
+	}
+	return nil
+}
+
 func (s *Store) Record(monitorName string, success bool, latency time.Duration, msg string) {
 	pt := Point{
 		Timestamp: time.Now(),
