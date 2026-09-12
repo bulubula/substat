@@ -1,0 +1,135 @@
+server:
+  listen: "0.0.0.0:8080"
+  # 子路径配置：支持任意多级路径（如 /zymstat），反向代理直达且无需重写静态资源
+  base_path: "/zymstat"
+
+storage:
+  # 探测历史追加归档路径
+  path: "./data/substat_history.jsonl"
+  # 内存中每个目标保留的最新点位数（用于秒开图表）
+  ring_buffer_size: 60
+
+# 全局报警通道定义（可插拔列表，供 monitors 引用）
+alerts:
+  - id: "bark-admin"
+    type: "bark"
+    url: "https://api.day.app/YOUR_BARK_KEY"
+    group: "Substat"
+
+  - id: "webhook-push"
+    type: "webhook"
+    url: "https://example.com/api/alert"
+    method: "POST"
+    headers:
+      Content-Type: "application/json"
+
+# 监控目标列表
+monitors:
+  # 1. 常规 HTTP/HTTPS 服务探针
+  - name: "trilium-wiki"
+    # 探测周期：仅支持 m (分), h (时), d (天)，范围 1m ~ 30d
+    interval: "5m"
+    timeout: "5s"
+    consecutive_failures: 3   # 连续失败 3 次触发 DOWN 告警
+    alerts: ["bark-admin"]
+    probe:
+      type: "http"
+      target: "http://192.168.0.5:6803/api/health"
+      method: "GET"
+      headers:
+        User-Agent: "Substat/1.0"
+      assert:
+        - target: "status"
+          operator: "equals"
+          value: "200"
+        - target: "latency_ms"
+          operator: "lte"
+          value: "1000"
+
+  # 2. 模拟登录与多步流水线探针 (HTTP Chain)
+  - name: "auth-pipeline-check"
+    interval: "15m"
+    timeout: "15s"
+    consecutive_failures: 2
+    alerts: ["bark-admin"]
+    probe:
+      type: "http_chain"
+      steps:
+        - name: "step1-login"
+          target: "https://auth.example.com/api/login"
+          method: "POST"
+          headers:
+            Content-Type: "application/json"
+          body: '{"username":"bot","password":"secretpassword"}'
+          extract:
+            token: "json:data.token"
+          assert:
+            - target: "status"
+              operator: "equals"
+              value: "200"
+
+        - name: "step2-profile"
+          target: "https://auth.example.com/api/user/profile"
+          method: "GET"
+          headers:
+            Authorization: "Bearer {{token}}"
+          assert:
+            - target: "status"
+              operator: "equals"
+              value: "200"
+            - target: "body"
+              operator: "contains"
+              value: "active"
+
+  # 3. TCP 端口与 TLS 证书到期探针
+  - name: "vps-tls-port"
+    interval: "1h"
+    timeout: "5s"
+    consecutive_failures: 2
+    alerts: ["bark-admin"]
+    probe:
+      type: "tcp"
+      target: "45.62.103.44:443"
+      tls: true
+      server_name: "example.com"
+      assert:
+        - target: "connected"
+          operator: "equals"
+          value: "true"
+        - target: "cert_expiry_days"
+          operator: "gte"
+          value: "14" # 证书少于 14 天判定异常
+
+  # 4. 局域网旁路网关 DNS 探针
+  - name: "ax6-dns-query"
+    interval: "10m"
+    timeout: "3s"
+    consecutive_failures: 3
+    alerts: ["bark-admin"]
+    probe:
+      type: "dns"
+      server: "192.168.0.2:53"
+      domain: "www.google.com"
+      query_type: "A"
+      assert:
+        - target: "resolved"
+          operator: "equals"
+          value: "true"
+        - target: "latency_ms"
+          operator: "lte"
+          value: "150"
+
+  # 5. ICMP Ping 丢包与往返延迟探针
+  - name: "gateway-ping"
+    interval: "2m"
+    timeout: "3s"
+    consecutive_failures: 2
+    alerts: ["bark-admin"]
+    probe:
+      type: "ping"
+      target: "192.168.0.1"
+      count: 3
+      assert:
+        - target: "packet_loss"
+          operator: "lte"
+          value: "0"
