@@ -1,5 +1,9 @@
 let cachedData = [];
-const SLOT_COUNT = 60;
+
+function getSlotCount() {
+  // Mobile / narrow screen: 60 slots; Desktop / wide screen: 120 slots
+  return window.innerWidth <= 600 ? 60 : 120;
+}
 
 // Theme switcher logic
 function initTheme() {
@@ -57,11 +61,12 @@ function parseIntervalToMs(intervalStr) {
   return 60000;
 }
 
-// Build strictly 60 slots: right-aligned with latest points, left-padded with empty
+// Build timeline slots: right-aligned with latest points, left-padded with empty
 function buildTimelineSlots(points) {
-  const slots = new Array(SLOT_COUNT);
+  const slotCount = getSlotCount();
+  const slots = new Array(slotCount);
   const pts = points || [];
-  const startEmptyCount = Math.max(0, SLOT_COUNT - pts.length);
+  const startEmptyCount = Math.max(0, slotCount - pts.length);
 
   // Left-pad with empty slots
   for (let i = 0; i < startEmptyCount; i++) {
@@ -72,8 +77,8 @@ function buildTimelineSlots(points) {
   }
 
   // Right side filled with real points (oldest to newest)
-  // If points exceed 60, take the last 60
-  const recentPoints = pts.slice(-SLOT_COUNT);
+  // If points exceed slotCount, take the last slotCount
+  const recentPoints = pts.slice(-slotCount);
   for (let i = 0; i < recentPoints.length; i++) {
     slots[startEmptyCount + i] = {
       slotIndex: startEmptyCount + i,
@@ -102,7 +107,7 @@ function renderMonitors(monitors) {
     const bars = slots.map((s, sIndex) => {
       const p = s.point;
       if (!p) {
-        return `<div class="bar-point empty" title="等待更多采样数据 (未满60次)"></div>`;
+        return `<div class="bar-point empty" title="等待更多采样数据 (未满${getSlotCount()}次)"></div>`;
       }
 
       let cls = 'fail';
@@ -196,3 +201,13 @@ function escapeHTML(str) {
 initTheme();
 fetchStatus();
 setInterval(fetchStatus, 10000);
+
+let resizeTimer;
+window.addEventListener('resize', () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(() => {
+    if (cachedData && cachedData.length > 0) {
+      renderMonitors(cachedData);
+    }
+  }, 150);
+});

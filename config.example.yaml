@@ -7,7 +7,7 @@ storage:
   # 探测历史追加归档路径
   path: "./data/substat_history.jsonl"
   # 内存中每个目标保留的最新点位数（用于秒开图表）
-  ring_buffer_size: 60
+  ring_buffer_size: 120
 
 # 全局报警通道定义（可插拔列表，供 monitors 引用）
 alerts:

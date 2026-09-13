@@ -22,7 +22,7 @@ type RingBuffer struct {
 
 func NewRingBuffer(capacity int) *RingBuffer {
 	if capacity <= 0 {
-		capacity = 60
+		capacity = 120
 	}
 	return &RingBuffer{
 		capacity: capacity,

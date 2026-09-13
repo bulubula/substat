@@ -117,7 +117,7 @@ func LoadConfig(path string) (*Config, error) {
 		cfg.Storage.Path = "./data/substat.db"
 	}
 	if cfg.Storage.RingBufferSize <= 0 {
-		cfg.Storage.RingBufferSize = 60
+		cfg.Storage.RingBufferSize = 120
 	}
 
 	names := make(map[string]bool)

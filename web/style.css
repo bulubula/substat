@@ -161,7 +161,7 @@ header {
 
 .history-bar {
   display: flex;
-  gap: 2px;
+  gap: 1.5px;
   height: 26px;
   align-items: flex-end;
   background: var(--bar-bg);
@@ -180,7 +180,7 @@ header {
 
 .bar-point {
   flex: 1 1 0;
-  min-width: 2px;
+  min-width: 1px;
   height: 100%;
   border-radius: 1px;
   cursor: pointer;
@@ -189,12 +189,12 @@ header {
 
 @media (max-width: 600px) {
   .history-bar {
-    gap: 1.5px;
+    gap: 1px;
     height: 22px;
     padding: 2px;
   }
   .bar-point {
-    min-width: 1.5px;
+    min-width: 1px;
     border-radius: 1px;
   }
 }
